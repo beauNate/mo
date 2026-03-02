@@ -20,6 +20,15 @@ const (
 	maxAge     = 7 * 24 * time.Hour
 )
 
+// LogDir returns the path to the log directory.
+func LogDir() (string, error) {
+	stateHome, err := xdg.StateHome()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(stateHome, "mo", "log"), nil
+}
+
 // Setup configures slog to write to a rotating log file under XDG_STATE_HOME/mo/log/.
 // Returns a cleanup function that closes the log file.
 func Setup(port int) (func(), error) {
