@@ -52,7 +52,7 @@ Examples:
   mo draft.md --port 6276               Use a different port
 
 Single Server, Multiple Files:
-  By default, mo runs a single mo server on port 6275.
+  By default, mo runs a single server on port 6275.
   If a mo server is already running on the same port, subsequent mo
   invocations add files to the existing session instead of starting a new one.
 
