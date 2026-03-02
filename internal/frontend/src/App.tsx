@@ -18,6 +18,8 @@ import {
   groupToPath,
 } from "./utils/groups";
 
+const VIEWMODE_STORAGE_KEY = "mo-sidebar-viewmode";
+
 export function App() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [activeGroup, setActiveGroup] = useState<string>("default");
@@ -28,7 +30,7 @@ export function App() {
   const [contentRevision, setContentRevision] = useState(0);
   const [viewModes, setViewModes] = useState<Record<string, ViewMode>>(() => {
     try {
-      const stored = localStorage.getItem("mo-sidebar-viewmode");
+      const stored = localStorage.getItem(VIEWMODE_STORAGE_KEY);
       if (stored) return JSON.parse(stored);
     } catch { /* ignore */ }
     return {};
@@ -139,7 +141,7 @@ export function App() {
     setViewModes((prev) => {
       const current = prev[activeGroup] ?? "flat";
       const next = { ...prev, [activeGroup]: current === "flat" ? "tree" as ViewMode : "flat" as ViewMode };
-      localStorage.setItem("mo-sidebar-viewmode", JSON.stringify(next));
+      localStorage.setItem(VIEWMODE_STORAGE_KEY, JSON.stringify(next));
       return next;
     });
   }, [activeGroup]);
