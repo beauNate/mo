@@ -34,6 +34,8 @@ depsdev:
 prerelease_for_tagpr: depsdev generate
 	go mod download
 	gocredits -w .
+	printf "\n================================================================\n\n" >> CREDITS
+	cat internal/frontend/CREDITS_FRONTEND >> CREDITS
 	git add CHANGELOG.md CREDITS go.mod go.sum
 
 .PHONY: default ci generate test build dev screenshot lint depsdev prerelease_for_tagpr
