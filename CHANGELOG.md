@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.11.4](https://github.com/k1LoW/mo/compare/v0.11.3...v0.11.4) - 2026-03-04
+### Other Changes
+- Include frontend dependency licenses in CREDITS by @k1LoW in https://github.com/k1LoW/mo/pull/59
+
 ## [v0.11.3](https://github.com/k1LoW/mo/compare/v0.11.2...v0.11.3) - 2026-03-03
 ### Other Changes
 - fix: avoid appending /default to URL when adding files to existing server by @k1LoW in https://github.com/k1LoW/mo/pull/56
