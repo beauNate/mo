@@ -540,6 +540,8 @@ func (s *State) walkDirsForPattern(gp *GlobPattern, fn func(string)) {
 		}
 		return nil
 	}); err != nil {
+		// BaseDir may have been deleted; still clean up the base directory entry.
+		fn(gp.BaseDir)
 		slog.Warn("failed to walk directories for pattern", "pattern", gp.Pattern, "base", gp.BaseDir, "error", err)
 	}
 }

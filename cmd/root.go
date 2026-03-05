@@ -286,35 +286,21 @@ func resolveFiles(args []string) ([]string, error) {
 }
 
 func tryAddToExisting(addr string, files []string, patterns []string) bool {
-	client, err := probeServer(addr, probeTimeoutFast)
+	result, err := probeServer(addr, probeTimeoutFast)
 	if err != nil {
 		return false
 	}
-
-	resp, err := client.Get(fmt.Sprintf("http://%s/_/api/groups", addr))
-	if err != nil {
-		return false
-	}
-
-	var existingGroups []struct {
-		Name string `json:"name"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&existingGroups); err != nil {
-		resp.Body.Close()
-		return false
-	}
-	resp.Body.Close()
 
 	isNewGroup := true
-	for _, g := range existingGroups {
-		if g.Name == target {
+	for _, g := range result.groups {
+		if g == target {
 			isNewGroup = false
 			break
 		}
 	}
 
-	postItems(client, addr, "/_/api/files", "path", target, files)
-	postItems(client, addr, "/_/api/patterns", "pattern", target, patterns)
+	postItems(result.client, addr, "/_/api/files", "path", target, files)
+	postItems(result.client, addr, "/_/api/patterns", "pattern", target, patterns)
 
 	added := len(files) + len(patterns)
 	slog.Info("added to existing server", "files", len(files), "patterns", len(patterns), "addr", addr)
@@ -350,9 +336,14 @@ func postItems(client *http.Client, addr, endpoint, key, group string, items []s
 	}
 }
 
+type probeResult struct {
+	client *http.Client
+	groups []string
+}
+
 // probeServer checks that a mo server is running on addr by calling
 // GET /_/api/status and validating the response contains a version field.
-func probeServer(addr string, timeout ...time.Duration) (*http.Client, error) {
+func probeServer(addr string, timeout ...time.Duration) (*probeResult, error) {
 	t := probeTimeoutDefault
 	if len(timeout) > 0 {
 		t = timeout[0]
@@ -364,23 +355,35 @@ func probeServer(addr string, timeout ...time.Duration) (*http.Client, error) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("server on %s returned %s", addr, resp.Status)
+	}
+
 	var status struct {
 		Version string `json:"version"`
 		PID     int    `json:"pid"`
+		Groups  []struct {
+			Name string `json:"name"`
+		} `json:"groups"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil || status.Version == "" {
 		return nil, fmt.Errorf("server on %s is not a mo instance", addr)
 	}
-	return client, nil
+
+	groups := make([]string, len(status.Groups))
+	for i, g := range status.Groups {
+		groups[i] = g.Name
+	}
+	return &probeResult{client: client, groups: groups}, nil
 }
 
 func doShutdown(addr string) error {
-	client, err := probeServer(addr)
+	result, err := probeServer(addr)
 	if err != nil {
 		return err
 	}
 
-	resp, err := client.Post(fmt.Sprintf("http://%s/_/api/shutdown", addr), "application/json", nil)
+	resp, err := result.client.Post(fmt.Sprintf("http://%s/_/api/shutdown", addr), "application/json", nil)
 	if err != nil {
 		return fmt.Errorf("failed to send shutdown request: %w", err)
 	}
@@ -396,7 +399,7 @@ func doShutdown(addr string) error {
 }
 
 func doUnwatch(addr string, patterns []string, groupName string) error {
-	client, err := probeServer(addr)
+	result, err := probeServer(addr)
 	if err != nil {
 		return err
 	}
@@ -416,7 +419,7 @@ func doUnwatch(addr string, patterns []string, groupName string) error {
 		}
 		req.Header.Set("Content-Type", "application/json")
 
-		resp, err := client.Do(req) //nolint:gosec // URL is constructed from local addr, not user-supplied
+		resp, err := result.client.Do(req) //nolint:gosec // URL is constructed from local addr, not user-supplied
 		if err != nil {
 			return fmt.Errorf("failed to send unwatch request: %w", err)
 		}
