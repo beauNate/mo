@@ -316,6 +316,24 @@ func TestHandleRestart(t *testing.T) {
 			t.Fatal("restartCh should have received a signal")
 		}
 	})
+
+	t.Run("does not block on duplicate signal", func(t *testing.T) {
+		s := newTestState(t)
+		s.groups["default"] = &Group{
+			Name:  "default",
+			Files: []*FileEntry{{ID: 1, Name: "a.md", Path: "/a.md"}},
+		}
+		handler := NewHandler(s)
+
+		for i := 0; i < 2; i++ {
+			req := httptest.NewRequest("POST", "/_/api/restart", nil)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusAccepted {
+				t.Fatalf("call %d: got status %d, want %d", i+1, rec.Code, http.StatusAccepted)
+			}
+		}
+	})
 }
 
 func TestHandleReorderFiles(t *testing.T) {
