@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -750,23 +751,23 @@ func TestHandleAddPattern(t *testing.T) {
 
 func TestHandleSSE_StartedEvent(t *testing.T) {
 	s := newTestState(t)
-	ts := httptest.NewServer(handleSSE(s))
-	t.Cleanup(ts.Close)
+	handler := handleSSE(s)
 
+	pr, pw := io.Pipe()
+	defer pr.Close()
+
+	rec := &flushRecorder{pw: pw}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL, nil)
-	if err != nil {
-		t.Fatalf("failed to create request: %v", err)
-	}
-	resp, err := ts.Client().Do(req)
-	if err != nil {
-		t.Fatalf("failed to connect to SSE: %v", err)
-	}
-	defer resp.Body.Close()
+	req := httptest.NewRequest(http.MethodGet, "/_/events", nil).WithContext(ctx)
 
-	scanner := bufio.NewScanner(resp.Body)
+	go func() {
+		handler.ServeHTTP(rec, req)
+		pw.Close()
+	}()
+
+	scanner := bufio.NewScanner(pr)
 	var eventLine, dataLine string
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -789,3 +790,25 @@ func TestHandleSSE_StartedEvent(t *testing.T) {
 
 	cancel()
 }
+
+// flushRecorder implements http.ResponseWriter and http.Flusher,
+// writing output to an io.Writer for streaming tests.
+type flushRecorder struct {
+	pw      io.Writer
+	headers http.Header
+}
+
+func (f *flushRecorder) Header() http.Header {
+	if f.headers == nil {
+		f.headers = make(http.Header)
+	}
+	return f.headers
+}
+
+func (f *flushRecorder) Write(b []byte) (int, error) {
+	return f.pw.Write(b)
+}
+
+func (f *flushRecorder) WriteHeader(_ int) {}
+
+func (f *flushRecorder) Flush() {}
