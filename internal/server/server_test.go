@@ -1,13 +1,16 @@
 package server
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -743,4 +746,46 @@ func TestHandleAddPattern(t *testing.T) {
 	if resp.Matched != 1 {
 		t.Fatalf("got matched=%d, want 1", resp.Matched)
 	}
+}
+
+func TestHandleSSE_StartedEvent(t *testing.T) {
+	s := newTestState(t)
+	ts := httptest.NewServer(handleSSE(s))
+	t.Cleanup(ts.Close)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, ts.URL, nil)
+	if err != nil {
+		t.Fatalf("failed to create request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("failed to connect to SSE: %v", err)
+	}
+	defer resp.Body.Close()
+
+	scanner := bufio.NewScanner(resp.Body)
+	var eventLine, dataLine string
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "event: ") {
+			eventLine = line
+		} else if strings.HasPrefix(line, "data: ") {
+			dataLine = line
+			break
+		}
+	}
+
+	if eventLine != "event: started" {
+		t.Fatalf("got event line %q, want %q", eventLine, "event: started")
+	}
+
+	wantData := fmt.Sprintf(`data: {"pid":%d}`, os.Getpid())
+	if dataLine != wantData {
+		t.Fatalf("got data line %q, want %q", dataLine, wantData)
+	}
+
+	cancel()
 }
