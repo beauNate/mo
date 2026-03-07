@@ -261,20 +261,6 @@ func run(cmd *cobra.Command, args []string) error {
 			openBrowser(addr)
 			return nil
 		}
-		// Auto-restore from backup
-		var rd server.RestoreData
-		if err := backup.Load(port, &rd); err != nil {
-			slog.Warn("failed to load backup", "error", err)
-		}
-		filesByGroup, patternsByGroup := filterValidRestoreData(&rd)
-		if len(filesByGroup) > 0 || len(patternsByGroup) > 0 {
-			slog.Info("restoring session from backup", "port", port)
-			fmt.Fprintf(os.Stderr, "mo: restoring previous session for port %d\n", port)
-			if foreground {
-				return startServer(cmd.Context(), addr, filesByGroup, patternsByGroup)
-			}
-			return startBackground(addr, filesByGroup, patternsByGroup)
-		}
 	}
 
 	if (len(files) > 0 || len(patterns) > 0) && tryAddToExisting(addr, files, patterns) {
@@ -285,6 +271,26 @@ func run(cmd *cobra.Command, args []string) error {
 	var patternsByGroup map[string][]string
 	if len(patterns) > 0 {
 		patternsByGroup = map[string][]string{target: patterns}
+	}
+
+	// Restore backup and merge with specified files/patterns
+	var rd server.RestoreData
+	if err := backup.Load(port, &rd); err != nil {
+		slog.Warn("failed to load backup", "error", err)
+	}
+	restoredFiles, restoredPatterns := filterValidRestoreData(&rd)
+	if len(restoredFiles) > 0 || len(restoredPatterns) > 0 {
+		slog.Info("restoring session from backup", "port", port)
+		fmt.Fprintf(os.Stderr, "mo: restoring previous session for port %d\n", port)
+		for group, paths := range restoredFiles {
+			filesByGroup[group] = append(filesByGroup[group], paths...)
+		}
+		if patternsByGroup == nil && len(restoredPatterns) > 0 {
+			patternsByGroup = make(map[string][]string)
+		}
+		for group, pats := range restoredPatterns {
+			patternsByGroup[group] = append(patternsByGroup[group], pats...)
+		}
 	}
 
 	if foreground {
