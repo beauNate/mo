@@ -449,6 +449,11 @@ func postFiles(client *http.Client, addr, group string, files []string) []deepli
 			slog.Warn("failed to post file", "path", f, "error", err)
 			continue
 		}
+		if resp.StatusCode != http.StatusOK {
+			slog.Warn("failed to add file", "path", f, "status", resp.StatusCode)
+			resp.Body.Close()
+			continue
+		}
 		var entry server.FileEntry
 		if err := json.NewDecoder(resp.Body).Decode(&entry); err != nil {
 			slog.Warn("failed to decode file response", "error", err)
@@ -482,6 +487,11 @@ func postPatterns(client *http.Client, addr, group string, patterns []string) []
 		)
 		if err != nil {
 			slog.Warn("failed to post pattern", "pattern", pat, "error", err)
+			continue
+		}
+		if resp.StatusCode != http.StatusOK {
+			slog.Warn("failed to add pattern", "pattern", pat, "status", resp.StatusCode)
+			resp.Body.Close()
 			continue
 		}
 		var patResp server.AddPatternResponse
