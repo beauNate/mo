@@ -517,7 +517,8 @@ func postPatterns(client *http.Client, addr, group string, patterns []string) []
 
 type deeplinkEntry struct {
 	URL  string
-	Path string // absolute file path for display name computation
+	Path string // absolute file path (empty for uploaded files)
+	Name string // display name fallback when Path is empty
 }
 
 // JSON output types
@@ -560,11 +561,7 @@ func deeplinksToJSON(entries []deeplinkEntry) []jsonFileEntry {
 	if len(entries) == 0 {
 		return []jsonFileEntry{}
 	}
-	paths := make([]string, len(entries))
-	for i, e := range entries {
-		paths[i] = e.Path
-	}
-	names := displayNames(paths)
+	names := deeplinkDisplayNames(entries)
 	result := make([]jsonFileEntry, len(entries))
 	for i, e := range entries {
 		result[i] = jsonFileEntry{URL: e.URL, Name: names[i], Path: e.Path}
@@ -618,15 +615,25 @@ func displayNames(paths []string) []string {
 	return names
 }
 
+// deeplinkDisplayNames computes display names for deeplink entries,
+// using Name as fallback when Path is empty (uploaded files).
+func deeplinkDisplayNames(entries []deeplinkEntry) []string {
+	var pathEntries []string
+	for _, e := range entries {
+		if e.Path != "" {
+			pathEntries = append(pathEntries, e.Path)
+		} else {
+			pathEntries = append(pathEntries, e.Name)
+		}
+	}
+	return displayNames(pathEntries)
+}
+
 func printDeeplinks(entries []deeplinkEntry) {
 	if len(entries) == 0 {
 		return
 	}
-	paths := make([]string, len(entries))
-	for i, e := range entries {
-		paths[i] = e.Path
-	}
-	names := displayNames(paths)
+	names := deeplinkDisplayNames(entries)
 	for i, e := range entries {
 		fmt.Printf("  %s  %s\n", e.URL, names[i])
 	}
@@ -1058,13 +1065,10 @@ func startBackground(addr string, filesByGroup map[string][]string, patternsByGr
 	if status != nil {
 		for _, g := range status.Groups {
 			for _, f := range g.Files {
-				p := f.Path
-				if p == "" {
-					p = f.Name
-				}
 				deeplinks = append(deeplinks, deeplinkEntry{
 					URL:  buildDeeplink(addr, g.Name, f.ID),
-					Path: p,
+					Path: f.Path,
+					Name: f.Name,
 				})
 			}
 		}
