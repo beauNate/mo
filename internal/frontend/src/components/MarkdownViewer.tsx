@@ -515,12 +515,12 @@ export function MarkdownViewer({ fileId, fileName, revision, onFileOpened, onHea
           newHeadings.push({
             id: el.id,
             text: el.textContent ?? "",
-            level: parseInt(el.tagName[1]),
+            level: parseInt(el.tagName.slice(1), 10),
           });
         }
       }
     }
-    const key = newHeadings.map((h) => `${h.id}:${h.level}`).join(",");
+    const key = newHeadings.map((h) => `${h.id}:${h.level}:${h.text}`).join(",");
     if (key !== prevHeadingsKey.current) {
       prevHeadingsKey.current = key;
       onHeadingsChange(newHeadings);
