@@ -147,7 +147,7 @@ func (s *State) AddUploadedFile(name, content, groupName string) *FileEntry {
 	h := sha256.New()
 	h.Write([]byte("upload:"))
 	h.Write([]byte(content))
-	id := hex.EncodeToString(h.Sum(nil))[:8]
+	id := "u" + hex.EncodeToString(h.Sum(nil))[:7]
 
 	// Check all groups for an existing entry with the same ID
 	for _, grp := range s.groups {
