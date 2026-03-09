@@ -745,6 +745,9 @@ func (s *State) watchLoop() {
 					})
 				}
 			}
+			if (event.Has(fsnotify.Rename) || event.Has(fsnotify.Remove)) && s.isWatchedDir(event.Name) {
+				s.handleDirMove(event.Name)
+			}
 			if event.Has(fsnotify.Create) {
 				s.handleCreateForGlobs(event.Name)
 			}
@@ -786,6 +789,37 @@ func (s *State) findIDsByPath(absPath string) []string {
 		}
 	}
 	return ids
+}
+
+func (s *State) findIDsByPathPrefix(dirPath string) []string {
+	prefix := dirPath + string(filepath.Separator)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var ids []string
+	for _, g := range s.groups {
+		for _, f := range g.Files {
+			if strings.HasPrefix(f.Path, prefix) {
+				ids = append(ids, f.ID)
+			}
+		}
+	}
+	return ids
+}
+
+func (s *State) isWatchedDir(path string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	_, ok := s.watchedDirs[path]
+	return ok
+}
+
+func (s *State) handleDirMove(dirPath string) {
+	ids := s.findIDsByPathPrefix(dirPath)
+	for _, id := range ids {
+		slog.Info("removing stale file after directory move", "dir", dirPath, "id", id)
+		s.RemoveFile(id)
+	}
 }
 
 func (s *State) sendEvent(e sseEvent) {
