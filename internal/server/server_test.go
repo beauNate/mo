@@ -1291,3 +1291,50 @@ func TestFileID(t *testing.T) {
 		t.Fatal("FileID should differ for different paths")
 	}
 }
+
+func TestDirMove(t *testing.T) {
+	ctx, cancel := donegroup.WithCancel(context.Background())
+	defer cancel()
+
+	s := NewState(ctx)
+
+	dir := t.TempDir()
+	subDir := filepath.Join(dir, "docs")
+	if err := os.MkdirAll(subDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	f1 := filepath.Join(subDir, "a.md")
+	f2 := filepath.Join(subDir, "b.md")
+	os.WriteFile(f1, []byte("# A"), 0o600) //nolint:errcheck
+	os.WriteFile(f2, []byte("# B"), 0o600) //nolint:errcheck
+
+	pattern := filepath.Join(dir, "**", "*.md")
+	entries, err := s.AddPattern(pattern, DefaultGroup)
+	if err != nil {
+		t.Fatalf("AddPattern returned error: %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("got %d entries, want 2", len(entries))
+	}
+
+	oldID1 := entries[0].ID
+	oldID2 := entries[1].ID
+
+	newDir := filepath.Join(dir, "docs-renamed")
+	if err := os.Rename(subDir, newDir); err != nil {
+		t.Fatal(err)
+	}
+
+	deadline := time.After(5 * time.Second)
+	for {
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for stale files to be removed")
+		default:
+		}
+		if s.FindFile(oldID1) == nil && s.FindFile(oldID2) == nil {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
