@@ -12,6 +12,7 @@ import type { TocHeading } from "./components/TocPanel";
 import { useSSE } from "./hooks/useSSE";
 import { useFileDrop } from "./hooks/useFileDrop";
 import { useActiveHeading } from "./hooks/useActiveHeading";
+import { useScrollRestoration, SCROLL_SESSION_KEY } from "./hooks/useScrollRestoration";
 import type { Group } from "./hooks/useApi";
 import { fetchGroups, removeFile, reorderFiles } from "./hooks/useApi";
 import {
@@ -42,9 +43,19 @@ export function App() {
     return {};
   });
   const knownFileIds = useRef<Set<string>>(new Set());
-  const [initialFileId, setInitialFileId] = useState<string | null>(
-    parseFileIdFromSearch(window.location.search),
-  );
+  const [initialFileId, setInitialFileId] = useState<string | null>(() => {
+    const fromUrl = parseFileIdFromSearch(window.location.search);
+    if (fromUrl) return fromUrl;
+    // Restore active file from scroll context saved before reload
+    try {
+      const stored = sessionStorage.getItem(SCROLL_SESSION_KEY);
+      if (stored) {
+        const ctx = JSON.parse(stored);
+        if (ctx.url === window.location.pathname && ctx.fileId) return ctx.fileId;
+      }
+    } catch { /* ignore */ }
+    return null;
+  });
   const [scrollContainer, setScrollContainer] = useState<HTMLDivElement | null>(null);
 
   // Track previous values for render-time state adjustment
@@ -159,6 +170,7 @@ export function App() {
       loadGroups();
     },
     onFileChanged: (fileId) => {
+      captureScrollPosition();
       setActiveFileId((current) => {
         if (current === fileId) {
           setContentRevision((r) => r + 1);
@@ -229,6 +241,12 @@ export function App() {
     scrollContainer,
   );
 
+  const { captureScrollPosition, onContentRendered } = useScrollRestoration(
+    scrollContainer,
+    activeHeadingId,
+    activeFileId,
+  );
+
   const handleHeadingClick = useCallback((id: string) => {
     const el = document.getElementById(id);
     el?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -283,6 +301,7 @@ export function App() {
                 revision={contentRevision}
                 onFileOpened={handleFileOpened}
                 onHeadingsChange={setHeadings}
+                onContentRendered={onContentRendered}
                 isTocOpen={tocOpen}
                 onTocToggle={() => setTocOpen((v) => !v)}
                 onRemoveFile={handleRemoveFile}
