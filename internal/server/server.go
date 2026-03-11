@@ -114,6 +114,13 @@ var ErrBinaryFile = errors.New("binary file is not supported")
 // isBinaryFile checks whether the file at the given path is binary
 // by reading the first 8KB and looking for NUL bytes (same heuristic as Git).
 func isBinaryFile(path string) (bool, error) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return false, err
+	}
+	if !fi.Mode().IsRegular() {
+		return false, fmt.Errorf("not a regular file: %s", path)
+	}
 	f, err := os.Open(path) //nolint:gosec
 	if err != nil {
 		return false, err
