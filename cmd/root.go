@@ -1002,10 +1002,6 @@ func startServer(ctx context.Context, addr string, filesByGroup map[string][]str
 			})
 		}
 	}
-	if totalFiles > 0 && skippedFiles == totalFiles {
-		return fmt.Errorf("all %d file(s) were skipped", totalFiles)
-	}
-
 	for group, pats := range patternsByGroup {
 		for _, pat := range pats {
 			entries, err := state.AddPattern(pat, group)
@@ -1024,6 +1020,10 @@ func startServer(ctx context.Context, addr string, filesByGroup map[string][]str
 
 	for _, uf := range uploadedFiles {
 		state.AddUploadedFile(uf.Name, uf.Content, uf.Group)
+	}
+
+	if totalFiles > 0 && skippedFiles == totalFiles && len(patternsByGroup) == 0 && len(uploadedFiles) == 0 {
+		return fmt.Errorf("all %d file(s) were skipped", totalFiles)
 	}
 
 	handler := server.NewHandler(state)
