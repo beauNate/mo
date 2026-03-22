@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.20.2](https://github.com/k1LoW/mo/compare/v0.20.1...v0.20.2) - 2026-03-22
+### Other Changes
+- fix: prevent scroll chaining on content area by @orangekame3 in https://github.com/k1LoW/mo/pull/133
+
 ## [v0.20.1](https://github.com/k1LoW/mo/compare/v0.20.0...v0.20.1) - 2026-03-20
 ### Fix bug 🐛
 - fix: clear running server state when using --clear by @k1LoW in https://github.com/k1LoW/mo/pull/131
