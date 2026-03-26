@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import {
-  getInitialTocOpenMap,
-  isTocOpenForFile,
-  TOC_OPEN_STORAGE_KEY,
-} from "./App";
+import { getInitialTocOpenMap, isTocOpenForFile, TOC_OPEN_STORAGE_KEY } from "./App";
 
 describe("getInitialTocOpenMap", () => {
   beforeEach(() => localStorage.clear());
