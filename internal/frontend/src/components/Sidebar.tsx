@@ -46,6 +46,7 @@ interface FileItemProps {
   onMenuToggle: (id: string) => void;
   onOpenInNewTab: (id: string) => void;
   onCopyPath: (path: string) => void;
+  onCopyLink: (id: string) => void;
   onMoveToGroup: (id: string, group: string) => void;
   onRemove: (id: string) => void;
   menuRef: React.RefObject<HTMLDivElement | null>;
@@ -61,6 +62,7 @@ function FileItem({
   onMenuToggle,
   onOpenInNewTab,
   onCopyPath,
+  onCopyLink,
   onMoveToGroup,
   onRemove,
   menuRef,
@@ -88,6 +90,7 @@ function FileItem({
         onToggle={onMenuToggle}
         onOpenInNewTab={onOpenInNewTab}
         onCopyPath={onCopyPath}
+        onCopyLink={onCopyLink}
         onMoveToGroup={onMoveToGroup}
         onRemove={onRemove}
         menuRef={menuRef}
@@ -264,6 +267,15 @@ export function Sidebar({
     navigator.clipboard.writeText(path).catch(() => {});
   }, []);
 
+  const handleCopyLink = useCallback(
+    (id: string) => {
+      setMenuOpenId(null);
+      const url = new URL(buildFileUrl(activeGroup, id), window.location.origin);
+      navigator.clipboard.writeText(url.toString()).catch(() => {});
+    },
+    [activeGroup],
+  );
+
   const handleRemove = useCallback((id: string) => {
     setMenuOpenId(null);
     removeFile(id);
@@ -306,6 +318,7 @@ export function Sidebar({
             onMenuToggle={handleMenuToggle}
             onOpenInNewTab={handleOpenInNewTab}
             onCopyPath={handleCopyPath}
+            onCopyLink={handleCopyLink}
             onMoveToGroup={handleMoveToGroup}
             onRemove={handleRemove}
             menuRef={menuRef}
@@ -323,6 +336,7 @@ export function Sidebar({
               onMenuToggle={handleMenuToggle}
               onOpenInNewTab={handleOpenInNewTab}
               onCopyPath={handleCopyPath}
+              onCopyLink={handleCopyLink}
               onMoveToGroup={handleMoveToGroup}
               onRemove={handleRemove}
               menuRef={menuRef}
@@ -347,6 +361,7 @@ export function Sidebar({
                   onMenuToggle={handleMenuToggle}
                   onOpenInNewTab={handleOpenInNewTab}
                   onCopyPath={handleCopyPath}
+                  onCopyLink={handleCopyLink}
                   onMoveToGroup={handleMoveToGroup}
                   onRemove={handleRemove}
                   menuRef={menuRef}

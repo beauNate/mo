@@ -10,6 +10,7 @@ interface FileContextMenuProps {
   onToggle: (id: string) => void;
   onOpenInNewTab: (id: string) => void;
   onCopyPath: (path: string) => void;
+  onCopyLink: (id: string) => void;
   onMoveToGroup: (id: string, group: string) => void;
   onRemove: (id: string) => void;
   menuRef: React.RefObject<HTMLDivElement | null>;
@@ -22,6 +23,7 @@ export function FileContextMenu({
   onToggle,
   onOpenInNewTab,
   onCopyPath,
+  onCopyLink,
   onMoveToGroup,
   onRemove,
   menuRef,
@@ -50,6 +52,13 @@ export function FileContextMenu({
               <path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z" />
             </svg>
             Open in new tab
+          </button>
+          <button className={MENU_ITEM_CLASS} onClick={() => onCopyLink(file.id)}>
+            <svg className="size-4" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M7.775 3.275a.75.75 0 0 0 1.06 1.06l1.25-1.25a2 2 0 1 1 2.83 2.83l-2.5 2.5a2 2 0 0 1-2.83 0 .75.75 0 0 0-1.06 1.06 3.5 3.5 0 0 0 4.95 0l2.5-2.5a3.5 3.5 0 0 0-4.95-4.95l-1.25 1.25Z" />
+              <path d="M8.225 12.725a.75.75 0 0 0-1.06-1.06l-1.25 1.25a2 2 0 1 1-2.83-2.83l2.5-2.5a2 2 0 0 1 2.83 0 .75.75 0 0 0 1.06-1.06 3.5 3.5 0 0 0-4.95 0l-2.5 2.5a3.5 3.5 0 0 0 4.95 4.95l1.25-1.25Z" />
+            </svg>
+            Copy link
           </button>
           {!file.uploaded && (
             <button className={MENU_ITEM_CLASS} onClick={() => onCopyPath(file.path)}>
