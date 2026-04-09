@@ -377,9 +377,22 @@ func (s *State) FindFile(id string) *FileEntry {
 }
 
 // FindGroupForFile returns the group name for a given file ID.
-func (s *State) FindGroupForFile(id string) string {
+// When groupName is provided, it verifies the file exists in that group.
+// When empty, it scans all groups (for internal callers without group context).
+func (s *State) FindGroupForFile(id, groupName string) string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
+	if groupName != "" {
+		if g, ok := s.groups[groupName]; ok {
+			for _, f := range g.Files {
+				if f.ID == id {
+					return g.Name
+				}
+			}
+		}
+		return ""
+	}
 
 	for _, g := range s.groups {
 		for _, f := range g.Files {
@@ -423,24 +436,19 @@ func (s *State) ReorderFiles(groupName string, fileIDs []string) bool {
 	return true
 }
 
-func (s *State) MoveFile(id string, targetGroup string) error {
+func (s *State) MoveFile(id, sourceGroupName, targetGroup string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	var file *FileEntry
-	var sourceGroupName string
 	var sourceGroup *Group
-	for gName, g := range s.groups {
+	if g, ok := s.groups[sourceGroupName]; ok {
 		for _, f := range g.Files {
 			if f.ID == id {
 				file = f
-				sourceGroupName = gName
 				sourceGroup = g
 				break
 			}
-		}
-		if file != nil {
-			break
 		}
 	}
 	if file == nil {
@@ -489,26 +497,23 @@ func (s *State) MoveFile(id string, targetGroup string) error {
 	return nil
 }
 
-func (s *State) RemoveFile(id string) bool {
+func (s *State) RemoveFile(id, groupName string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	var removedPath string
 	found := false
-	for gName, g := range s.groups {
+	if g, ok := s.groups[groupName]; ok {
 		for i, f := range g.Files {
 			if f.ID == id {
 				removedPath = f.Path
 				g.Files = append(g.Files[:i], g.Files[i+1:]...)
-				if len(g.Files) == 0 && !s.groupHasPatterns(gName) {
-					delete(s.groups, gName)
+				if len(g.Files) == 0 && !s.groupHasPatterns(groupName) {
+					delete(s.groups, groupName)
 				}
 				found = true
 				break
 			}
-		}
-		if found {
-			break
 		}
 	}
 	if !found {
@@ -904,8 +909,8 @@ func (s *State) watchLoop() {
 			if !ok {
 				return
 			}
-			ids := s.findIDsByPath(event.Name)
-			if len(ids) > 0 {
+			refs := s.findRefsByPath(event.Name)
+			if len(refs) > 0 {
 				if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) {
 					slog.Info("file changed", "path", event.Name)
 					s.scheduleFileChanged(event.Name)
@@ -918,8 +923,8 @@ func (s *State) watchLoop() {
 						if err := s.watcher.Add(event.Name); err != nil {
 							// File is actually gone — remove from file list
 							slog.Info("file deleted, removing from list", "path", event.Name)
-							for _, id := range ids {
-								s.RemoveFile(id)
+							for _, ref := range refs {
+								s.RemoveFile(ref.ID, ref.Group)
 							}
 						} else {
 							slog.Info("re-watching file", "path", event.Name)
@@ -1016,35 +1021,40 @@ func (s *State) notifyFileChanged(ids []string) {
 	}
 }
 
-func (s *State) findIDsByPath(absPath string) []string {
+type fileRef struct {
+	ID    string
+	Group string
+}
+
+func (s *State) findRefsByPath(absPath string) []fileRef {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var ids []string
+	var refs []fileRef
 	for _, g := range s.groups {
 		for _, f := range g.Files {
 			if f.Path == absPath {
-				ids = append(ids, f.ID)
+				refs = append(refs, fileRef{ID: f.ID, Group: g.Name})
 			}
 		}
 	}
-	return ids
+	return refs
 }
 
-func (s *State) findIDsByPathPrefix(dirPath string) []string {
+func (s *State) findRefsByPathPrefix(dirPath string) []fileRef {
 	prefix := dirPath + string(filepath.Separator)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var ids []string
+	var refs []fileRef
 	for _, g := range s.groups {
 		for _, f := range g.Files {
 			if strings.HasPrefix(f.Path, prefix) {
-				ids = append(ids, f.ID)
+				refs = append(refs, fileRef{ID: f.ID, Group: g.Name})
 			}
 		}
 	}
-	return ids
+	return refs
 }
 
 func (s *State) isWatchedDir(path string) bool {
@@ -1055,10 +1065,10 @@ func (s *State) isWatchedDir(path string) bool {
 }
 
 func (s *State) handleDirMove(dirPath string) {
-	ids := s.findIDsByPathPrefix(dirPath)
-	for _, id := range ids {
-		slog.Info("removing stale file after directory move", "dir", dirPath, "id", id)
-		s.RemoveFile(id)
+	refs := s.findRefsByPathPrefix(dirPath)
+	for _, ref := range refs {
+		slog.Info("removing stale file after directory move", "dir", dirPath, "id", ref.ID)
+		s.RemoveFile(ref.ID, ref.Group)
 	}
 }
 
@@ -1156,7 +1166,6 @@ func (s *State) matchAndAddFile(path string, patterns []*GlobPattern) {
 }
 
 type reorderFilesRequest struct {
-	Group   string   `json:"group"`
 	FileIDs []string `json:"fileIds"`
 }
 
@@ -1165,14 +1174,12 @@ type moveFileRequest struct {
 }
 
 type addFileRequest struct {
-	Path  string `json:"path"`
-	Group string `json:"group"`
+	Path string `json:"path"`
 }
 
 type uploadFileRequest struct {
 	Name    string `json:"name"`
 	Content string `json:"content"`
-	Group   string `json:"group"`
 }
 
 type patternRequest struct {
@@ -1229,19 +1236,24 @@ type openFileRequest struct {
 	Path   string `json:"path"`
 }
 
+// resolveGroupFromPath extracts and validates the group name from the URL path.
+func resolveGroupFromPath(r *http.Request) (string, error) {
+	return ResolveGroupName(r.PathValue("group"))
+}
+
 func NewHandler(state *State) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("POST /_/api/files", handleAddFile(state))
-	mux.HandleFunc("POST /_/api/files/upload", handleUploadFile(state))
-	mux.HandleFunc("DELETE /_/api/files/{id}", handleRemoveFile(state))
-	mux.HandleFunc("PUT /_/api/files/{id}/group", handleMoveFile(state))
+	mux.HandleFunc("POST /_/api/groups/{group}/files", handleAddFile(state))
+	mux.HandleFunc("POST /_/api/groups/{group}/files/upload", handleUploadFile(state))
+	mux.HandleFunc("DELETE /_/api/groups/{group}/files/{id}", handleRemoveFile(state))
+	mux.HandleFunc("PUT /_/api/groups/{group}/files/{id}/group", handleMoveFile(state))
 	mux.HandleFunc("GET /_/api/groups", handleGroups(state))
-	mux.HandleFunc("PUT /_/api/reorder", handleReorderFiles(state))
-	mux.HandleFunc("GET /_/api/files/{id}/content", handleFileContent(state))
+	mux.HandleFunc("PUT /_/api/groups/{group}/reorder", handleReorderFiles(state))
+	mux.HandleFunc("GET /_/api/groups/{group}/files/{id}/content", handleFileContent(state))
 	mux.HandleFunc("GET /_/api/search", handleSearch(state))
-	mux.HandleFunc("GET /_/api/files/{id}/raw/{path...}", handleFileRaw(state))
-	mux.HandleFunc("POST /_/api/files/open", handleOpenFile(state))
+	mux.HandleFunc("GET /_/api/groups/{group}/files/{id}/raw/{path...}", handleFileRaw(state))
+	mux.HandleFunc("POST /_/api/groups/{group}/files/open", handleOpenFile(state))
 	mux.HandleFunc("POST /_/api/patterns", handleAddPattern(state))
 	mux.HandleFunc("DELETE /_/api/patterns", handleRemovePattern(state))
 	mux.HandleFunc("POST /_/api/restart", handleRestart(state))
@@ -1273,6 +1285,12 @@ func withCSP(next http.Handler) http.Handler {
 
 func handleAddFile(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		group, err := resolveGroupFromPath(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
 		var req addFileRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -1287,12 +1305,6 @@ func handleAddFile(state *State) http.HandlerFunc {
 
 		if _, err := os.Stat(absPath); err != nil {
 			http.Error(w, fmt.Sprintf("file not found: %s", absPath), http.StatusBadRequest)
-			return
-		}
-
-		group, err := ResolveGroupName(req.Group)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
@@ -1312,6 +1324,12 @@ func handleUploadFile(state *State) http.HandlerFunc {
 	const maxRequestSize = 12 << 20 // 12MB (headroom for JSON envelope)
 	const maxContentSize = 10 << 20 // 10MB
 	return func(w http.ResponseWriter, r *http.Request) {
+		group, err := resolveGroupFromPath(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
 		r.Body = http.MaxBytesReader(w, r.Body, maxRequestSize)
 		var req uploadFileRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -1334,12 +1352,6 @@ func handleUploadFile(state *State) http.HandlerFunc {
 			return
 		}
 
-		group, err := ResolveGroupName(req.Group)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
 		entry := state.AddUploadedFile(req.Name, req.Content, group)
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(entry); err != nil {
@@ -1350,12 +1362,17 @@ func handleUploadFile(state *State) http.HandlerFunc {
 
 func handleRemoveFile(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		group, err := resolveGroupFromPath(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		id := r.PathValue("id")
 		if id == "" {
 			http.Error(w, "missing file id", http.StatusBadRequest)
 			return
 		}
-		if !state.RemoveFile(id) {
+		if !state.RemoveFile(id, group) {
 			http.Error(w, "file not found", http.StatusNotFound)
 			return
 		}
@@ -1365,6 +1382,11 @@ func handleRemoveFile(state *State) http.HandlerFunc {
 
 func handleMoveFile(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		sourceGroup, err := resolveGroupFromPath(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		id := r.PathValue("id")
 		if id == "" {
 			http.Error(w, "missing file id", http.StatusBadRequest)
@@ -1375,12 +1397,12 @@ func handleMoveFile(state *State) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		group, err := ResolveGroupName(req.Group)
+		targetGroup, err := ResolveGroupName(req.Group)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		if err := state.MoveFile(id, group); err != nil {
+		if err := state.MoveFile(id, sourceGroup, targetGroup); err != nil {
 			http.Error(w, err.Error(), http.StatusConflict)
 			return
 		}
@@ -1390,13 +1412,13 @@ func handleMoveFile(state *State) http.HandlerFunc {
 
 func handleReorderFiles(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req reorderFilesRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		group, err := resolveGroupFromPath(r)
+		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		group, err := ResolveGroupName(req.Group)
-		if err != nil {
+		var req reorderFilesRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -1694,6 +1716,12 @@ func handleFileRaw(state *State) http.HandlerFunc {
 
 func handleOpenFile(state *State) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		groupName, err := resolveGroupFromPath(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
 		var req openFileRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -1723,7 +1751,7 @@ func handleOpenFile(state *State) http.HandlerFunc {
 			return
 		}
 
-		groupName := state.FindGroupForFile(req.FileID)
+		groupName = state.FindGroupForFile(req.FileID, groupName)
 		if groupName == "" {
 			groupName = DefaultGroup
 		}

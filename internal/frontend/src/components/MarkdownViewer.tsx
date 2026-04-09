@@ -63,6 +63,7 @@ const sanitizeSchema = {
 interface MarkdownViewerProps {
   fileId: string;
   fileName: string;
+  activeGroup: string;
   revision: number;
   onFileOpened: (fileId: string) => void;
   onHeadingsChange: (headings: TocHeading[]) => void;
@@ -522,6 +523,7 @@ function RawView({ content }: { content: string }) {
 export function MarkdownViewer({
   fileId,
   fileName,
+  activeGroup,
   revision,
   onFileOpened,
   onHeadingsChange,
@@ -550,7 +552,7 @@ export function MarkdownViewer({
 
   useEffect(() => {
     let cancelled = false;
-    fetchFileContent(fileId)
+    fetchFileContent(activeGroup, fileId)
       .then((data) => {
         if (!cancelled) {
           setContent(data.content);
@@ -566,19 +568,19 @@ export function MarkdownViewer({
     return () => {
       cancelled = true;
     };
-  }, [fileId, revision]);
+  }, [activeGroup, fileId, revision]);
 
   const handleLinkClick = useCallback(
     async (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
       e.preventDefault();
       try {
-        const entry = await openRelativeFile(fileId, href);
+        const entry = await openRelativeFile(activeGroup, fileId, href);
         onFileOpened(entry.id);
       } catch {
         // fallback: do nothing
       }
     },
-    [fileId, onFileOpened],
+    [activeGroup, fileId, onFileOpened],
   );
 
   const components: Components = useMemo(

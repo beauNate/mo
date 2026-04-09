@@ -346,9 +346,9 @@ export function App() {
 
   const handleRemoveFile = useCallback(() => {
     if (activeFileId != null) {
-      removeFile(activeFileId);
+      removeFile(activeGroup, activeFileId);
     }
-  }, [activeFileId]);
+  }, [activeFileId, activeGroup]);
 
   const handleFilesReorder = useCallback((groupName: string, fileIds: string[]) => {
     // Optimistic update
@@ -455,6 +455,7 @@ export function App() {
               <MarkdownViewer
                 fileId={activeFileId}
                 fileName={activeFileName}
+                activeGroup={activeGroup}
                 revision={contentRevision}
                 onFileOpened={handleFileOpened}
                 onHeadingsChange={setHeadings}

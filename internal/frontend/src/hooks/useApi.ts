@@ -54,20 +54,24 @@ export interface SearchResponse {
   results: SearchResult[];
 }
 
+function groupPath(group: string): string {
+  return `/_/api/groups/${encodeURIComponent(group)}`;
+}
+
 export async function fetchGroups(): Promise<Group[]> {
   const res = await fetch("/_/api/groups");
   if (!res.ok) throw new Error("Failed to fetch groups");
   return res.json();
 }
 
-export async function fetchFileContent(id: string): Promise<FileContent> {
-  const res = await fetch(`/_/api/files/${id}/content`);
+export async function fetchFileContent(group: string, id: string): Promise<FileContent> {
+  const res = await fetch(`${groupPath(group)}/files/${id}/content`);
   if (!res.ok) throw new Error("Failed to fetch file content");
   return res.json();
 }
 
-export async function openRelativeFile(fileId: string, relativePath: string): Promise<FileEntry> {
-  const res = await fetch("/_/api/files/open", {
+export async function openRelativeFile(group: string, fileId: string, relativePath: string): Promise<FileEntry> {
+  const res = await fetch(`${groupPath(group)}/files/open`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ fileId, path: relativePath }),
@@ -76,25 +80,25 @@ export async function openRelativeFile(fileId: string, relativePath: string): Pr
   return res.json();
 }
 
-export async function removeFile(id: string): Promise<void> {
-  const res = await fetch(`/_/api/files/${id}`, { method: "DELETE" });
+export async function removeFile(group: string, id: string): Promise<void> {
+  const res = await fetch(`${groupPath(group)}/files/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Failed to remove file");
 }
 
 export async function reorderFiles(groupName: string, fileIds: string[]): Promise<void> {
-  const res = await fetch("/_/api/reorder", {
+  const res = await fetch(`${groupPath(groupName)}/reorder`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ group: groupName, fileIds }),
+    body: JSON.stringify({ fileIds }),
   });
   if (!res.ok) throw new Error("Failed to reorder files");
 }
 
-export async function moveFile(id: string, group: string): Promise<void> {
-  const res = await fetch(`/_/api/files/${id}/group`, {
+export async function moveFile(sourceGroup: string, id: string, targetGroup: string): Promise<void> {
+  const res = await fetch(`${groupPath(sourceGroup)}/files/${id}/group`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ group }),
+    body: JSON.stringify({ group: targetGroup }),
   });
   if (!res.ok) {
     const text = await res.text();
@@ -103,10 +107,10 @@ export async function moveFile(id: string, group: string): Promise<void> {
 }
 
 export async function uploadFile(name: string, content: string, group: string): Promise<void> {
-  const res = await fetch("/_/api/files/upload", {
+  const res = await fetch(`${groupPath(group)}/files/upload`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, content, group }),
+    body: JSON.stringify({ name, content }),
   });
   if (!res.ok) {
     const text = await res.text();

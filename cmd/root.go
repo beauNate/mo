@@ -10,6 +10,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -583,15 +584,14 @@ func postFiles(client *http.Client, addr, group string, files []string) []deepli
 	var entries []deeplinkEntry
 	for _, f := range files {
 		body, err := json.Marshal(map[string]string{
-			"path":  f,
-			"group": group,
+			"path": f,
 		})
 		if err != nil {
 			slog.Warn("failed to marshal request", "path", f, "error", err)
 			continue
 		}
 		resp, err := client.Post(
-			fmt.Sprintf("http://%s/_/api/files", addr),
+			fmt.Sprintf("http://%s/_/api/groups/%s/files", addr, url.PathEscape(group)),
 			"application/json",
 			bytes.NewReader(body),
 		)
@@ -988,7 +988,7 @@ func doClose(addr string, paths []string, groupName string) ([]string, error) {
 		}
 
 		req, err := http.NewRequest(http.MethodDelete,
-			fmt.Sprintf("http://%s/_/api/files/%s", addr, id), nil)
+			fmt.Sprintf("http://%s/_/api/groups/%s/files/%s", addr, url.PathEscape(groupName), id), nil)
 		if err != nil {
 			joinedErr = errors.Join(joinedErr, fmt.Errorf("failed to create request for %q: %w", absPath, err))
 			continue

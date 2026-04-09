@@ -98,7 +98,7 @@ cd internal/frontend && pnpm run dev
 
 ## Key Design Patterns
 
-- **Single instance**: CLI probes `/_/api/status` on the target port via `probeServer()`. If already running, pushes files via `POST /_/api/files` and exits.
+- **Single instance**: CLI probes `/_/api/status` on the target port via `probeServer()`. If already running, pushes files via `POST /_/api/groups/{group}/files` and exits.
 - **File IDs**: Files get deterministic string IDs derived from the SHA-256 hash of the absolute path (first 8 hex characters). IDs are stable across server restarts, enabling deep linking. The frontend primarily references files by ID. Absolute paths are available via `FileEntry.path` for display (e.g., tooltip, tree view).
 - **Tab groups**: Files are organized into named groups. Group name maps to the URL path (e.g., `/design`). Default group name is `"default"`.
 - **Live-reload via SSE**: fsnotify watches files; `file-changed` events trigger frontend to re-fetch content by file ID.
@@ -112,16 +112,18 @@ cd internal/frontend && pnpm run dev
 
 ## API Conventions
 
-All internal endpoints use `/_/api/` prefix and SSE uses `/_/events`. The `/_/` prefix avoids collisions with user-facing group name routes.
+All internal endpoints use `/_/api/` prefix and SSE uses `/_/events`. The `/_/` prefix avoids collisions with user-facing group name routes. File-scoped endpoints are nested under `/_/api/groups/{group}/` so the group context is always explicit in the URL path.
 
 Key endpoints:
 - `GET /_/api/groups` — List all groups with files
-- `POST /_/api/files` — Add file
-- `DELETE /_/api/files/{id}` — Remove file
-- `GET /_/api/files/{id}/content` — File content (markdown)
-- `PUT /_/api/files/{id}/group` — Move file to another group
-- `PUT /_/api/reorder` — Reorder files in a group (group name in body)
-- `POST /_/api/files/open` — Open relative file link
+- `POST /_/api/groups/{group}/files` — Add file
+- `DELETE /_/api/groups/{group}/files/{id}` — Remove file
+- `GET /_/api/groups/{group}/files/{id}/content` — File content (markdown)
+- `PUT /_/api/groups/{group}/files/{id}/group` — Move file to another group (target group in body)
+- `PUT /_/api/groups/{group}/reorder` — Reorder files in a group
+- `POST /_/api/groups/{group}/files/open` — Open relative file link
+- `POST /_/api/groups/{group}/files/upload` — Upload file (drag-and-drop)
+- `GET /_/api/groups/{group}/files/{id}/raw/{path...}` — Raw file assets (images, etc.)
 - `POST /_/api/patterns` — Add glob watch pattern
 - `DELETE /_/api/patterns` — Remove glob watch pattern
 - `GET /_/api/status` — Server status (version, pid, groups with patterns)

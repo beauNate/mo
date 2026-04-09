@@ -127,7 +127,7 @@ func TestMoveFile(t *testing.T) {
 			Files: []*FileEntry{{ID: idC, Name: "c.md", Path: "/c.md"}},
 		}
 
-		if err := s.MoveFile(idA, "dst"); err != nil {
+		if err := s.MoveFile(idA, "src", "dst"); err != nil {
 			t.Fatalf("MoveFile returned error: %v", err)
 		}
 
@@ -146,7 +146,7 @@ func TestMoveFile(t *testing.T) {
 			Files: []*FileEntry{{ID: idA, Name: "a.md", Path: "/a.md"}, {ID: idB, Name: "b.md", Path: "/b.md"}},
 		}
 
-		if err := s.MoveFile(idA, "newgroup"); err != nil {
+		if err := s.MoveFile(idA, "src", "newgroup"); err != nil {
 			t.Fatalf("MoveFile returned error: %v", err)
 		}
 
@@ -169,7 +169,7 @@ func TestMoveFile(t *testing.T) {
 			Files: []*FileEntry{{ID: idB, Name: "b.md", Path: "/b.md"}},
 		}
 
-		if err := s.MoveFile(idA, "dst"); err != nil {
+		if err := s.MoveFile(idA, "src", "dst"); err != nil {
 			t.Fatalf("MoveFile returned error: %v", err)
 		}
 
@@ -189,7 +189,7 @@ func TestMoveFile(t *testing.T) {
 			Files: []*FileEntry{{ID: idA, Name: "a.md", Path: "/a.md"}},
 		}
 
-		err := s.MoveFile(idA, "dst")
+		err := s.MoveFile(idA, "src", "dst")
 		if err == nil {
 			t.Fatal("MoveFile should return error for duplicate path")
 		}
@@ -202,7 +202,7 @@ func TestMoveFile(t *testing.T) {
 			Files: []*FileEntry{{ID: idA, Name: "a.md", Path: "/a.md"}},
 		}
 
-		err := s.MoveFile(idA, "src")
+		err := s.MoveFile(idA, "src", "src")
 		if err == nil {
 			t.Fatal("MoveFile should return error for same group")
 		}
@@ -210,7 +210,7 @@ func TestMoveFile(t *testing.T) {
 
 	t.Run("returns error for unknown file", func(t *testing.T) {
 		s := newTestState(t)
-		err := s.MoveFile("nonexist", "dst")
+		err := s.MoveFile("nonexist", "src", "dst")
 		if err == nil {
 			t.Fatal("MoveFile should return error for unknown file")
 		}
@@ -237,7 +237,7 @@ func TestHandleMoveFile(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		req := httptest.NewRequest("PUT", fmt.Sprintf("/_/api/files/%s/group", idA), bytes.NewReader(body))
+		req := httptest.NewRequest("PUT", fmt.Sprintf("/_/api/groups/src/files/%s/group", idA), bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 
@@ -267,7 +267,7 @@ func TestHandleMoveFile(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		req := httptest.NewRequest("PUT", fmt.Sprintf("/_/api/files/%s/group", idA), bytes.NewReader(body))
+		req := httptest.NewRequest("PUT", fmt.Sprintf("/_/api/groups/src/files/%s/group", idA), bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 
@@ -389,11 +389,11 @@ func TestHandleReorderFiles(t *testing.T) {
 		}
 
 		handler := NewHandler(s)
-		body, err := json.Marshal(reorderFilesRequest{Group: "docs", FileIDs: []string{idB, idA}})
+		body, err := json.Marshal(reorderFilesRequest{FileIDs: []string{idB, idA}})
 		if err != nil {
 			t.Fatal(err)
 		}
-		req := httptest.NewRequest("PUT", "/_/api/reorder", bytes.NewReader(body))
+		req := httptest.NewRequest("PUT", "/_/api/groups/docs/reorder", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 
@@ -420,11 +420,11 @@ func TestHandleReorderFiles(t *testing.T) {
 		}
 
 		handler := NewHandler(s)
-		body, err := json.Marshal(reorderFilesRequest{Group: "api/docs", FileIDs: []string{idB, idA}})
+		body, err := json.Marshal(reorderFilesRequest{FileIDs: []string{idB, idA}})
 		if err != nil {
 			t.Fatal(err)
 		}
-		req := httptest.NewRequest("PUT", "/_/api/reorder", bytes.NewReader(body))
+		req := httptest.NewRequest("PUT", "/_/api/groups/api%2Fdocs/reorder", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 
@@ -443,11 +443,11 @@ func TestHandleReorderFiles(t *testing.T) {
 	t.Run("returns 400 for invalid group", func(t *testing.T) {
 		s := newTestState(t)
 		handler := NewHandler(s)
-		body, err := json.Marshal(reorderFilesRequest{Group: "nonexistent", FileIDs: []string{idA}})
+		body, err := json.Marshal(reorderFilesRequest{FileIDs: []string{idA}})
 		if err != nil {
 			t.Fatal(err)
 		}
-		req := httptest.NewRequest("PUT", "/_/api/reorder", bytes.NewReader(body))
+		req := httptest.NewRequest("PUT", "/_/api/groups/nonexistent/reorder", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 
@@ -462,7 +462,7 @@ func TestHandleReorderFiles(t *testing.T) {
 		s := newTestState(t)
 		s.groups[DefaultGroup] = &Group{Name: DefaultGroup, Files: []*FileEntry{}}
 		handler := NewHandler(s)
-		req := httptest.NewRequest("PUT", "/_/api/reorder", bytes.NewReader([]byte("invalid")))
+		req := httptest.NewRequest("PUT", "/_/api/groups/default/reorder", bytes.NewReader([]byte("invalid")))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 
@@ -654,7 +654,7 @@ func TestGroupPersistsWithPatternsAfterFileRemoval(t *testing.T) {
 
 	// Remove the only file — group should persist because pattern remains.
 	fileID := groups[0].Files[0].ID
-	if !s.RemoveFile(fileID) {
+	if !s.RemoveFile(fileID, groups[0].Name) {
 		t.Fatal("RemoveFile returned false")
 	}
 
@@ -1242,11 +1242,11 @@ func TestHandleAddFile_RejectsBinaryFile(t *testing.T) {
 		binFile := filepath.Join(dir, "image.png")
 		os.WriteFile(binFile, []byte{0x89, 0x50, 0x4e, 0x47, 0x00}, 0o600) //nolint:errcheck
 
-		body, err := json.Marshal(addFileRequest{Path: binFile, Group: DefaultGroup})
+		body, err := json.Marshal(addFileRequest{Path: binFile})
 		if err != nil {
 			t.Fatal(err)
 		}
-		req := httptest.NewRequest("POST", "/_/api/files", bytes.NewReader(body))
+		req := httptest.NewRequest("POST", "/_/api/groups/default/files", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 
@@ -1264,11 +1264,11 @@ func TestHandleAddFile_RejectsBinaryFile(t *testing.T) {
 		txtFile := filepath.Join(dir, "readme.md")
 		os.WriteFile(txtFile, []byte("# Hello"), 0o600) //nolint:errcheck
 
-		body, err := json.Marshal(addFileRequest{Path: txtFile, Group: DefaultGroup})
+		body, err := json.Marshal(addFileRequest{Path: txtFile})
 		if err != nil {
 			t.Fatal(err)
 		}
-		req := httptest.NewRequest("POST", "/_/api/files", bytes.NewReader(body))
+		req := httptest.NewRequest("POST", "/_/api/groups/default/files", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 
@@ -1293,11 +1293,11 @@ func TestHandleUploadFile(t *testing.T) {
 		s := newTestState(t)
 		handler := NewHandler(s)
 
-		body, err := json.Marshal(uploadFileRequest{Name: "test.md", Content: "# Hello", Group: DefaultGroup})
+		body, err := json.Marshal(uploadFileRequest{Name: "test.md", Content: "# Hello"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		req := httptest.NewRequest("POST", "/_/api/files/upload", bytes.NewReader(body))
+		req := httptest.NewRequest("POST", "/_/api/groups/default/files/upload", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 
@@ -1324,11 +1324,11 @@ func TestHandleUploadFile(t *testing.T) {
 		handler := NewHandler(s)
 
 		oversized := strings.Repeat("x", 10<<20+1) // 10MB + 1 byte
-		body, err := json.Marshal(uploadFileRequest{Name: "big.md", Content: oversized, Group: DefaultGroup})
+		body, err := json.Marshal(uploadFileRequest{Name: "big.md", Content: oversized})
 		if err != nil {
 			t.Fatal(err)
 		}
-		req := httptest.NewRequest("POST", "/_/api/files/upload", bytes.NewReader(body))
+		req := httptest.NewRequest("POST", "/_/api/groups/default/files/upload", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 
@@ -1343,11 +1343,11 @@ func TestHandleUploadFile(t *testing.T) {
 		s := newTestState(t)
 		handler := NewHandler(s)
 
-		body, err := json.Marshal(uploadFileRequest{Name: "", Content: "# Hello", Group: DefaultGroup})
+		body, err := json.Marshal(uploadFileRequest{Name: "", Content: "# Hello"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		req := httptest.NewRequest("POST", "/_/api/files/upload", bytes.NewReader(body))
+		req := httptest.NewRequest("POST", "/_/api/groups/default/files/upload", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 
@@ -1365,7 +1365,7 @@ func TestUploadedFileContent(t *testing.T) {
 		entry := s.AddUploadedFile("test.md", "# Uploaded Content", DefaultGroup)
 
 		handler := NewHandler(s)
-		req := httptest.NewRequest("GET", fmt.Sprintf("/_/api/files/%s/content", entry.ID), nil)
+		req := httptest.NewRequest("GET", fmt.Sprintf("/_/api/groups/default/files/%s/content", entry.ID), nil)
 		rec := httptest.NewRecorder()
 
 		handler.ServeHTTP(rec, req)
@@ -1391,7 +1391,7 @@ func TestUploadedFileContent(t *testing.T) {
 		entry := s.AddUploadedFile("test.md", "# Hello", DefaultGroup)
 
 		handler := NewHandler(s)
-		req := httptest.NewRequest("GET", fmt.Sprintf("/_/api/files/%s/raw/image.png", entry.ID), nil)
+		req := httptest.NewRequest("GET", fmt.Sprintf("/_/api/groups/default/files/%s/raw/image.png", entry.ID), nil)
 		rec := httptest.NewRecorder()
 
 		handler.ServeHTTP(rec, req)
@@ -1410,7 +1410,7 @@ func TestUploadedFileContent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		req := httptest.NewRequest("POST", "/_/api/files/open", bytes.NewReader(body))
+		req := httptest.NewRequest("POST", "/_/api/groups/default/files/open", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 
@@ -1577,7 +1577,7 @@ func TestMoveUploadedFile(t *testing.T) {
 		s := newTestState(t)
 		entry := s.AddUploadedFile("test.md", "# Hello", "src")
 
-		if err := s.MoveFile(entry.ID, "dst"); err != nil {
+		if err := s.MoveFile(entry.ID, "src", "dst"); err != nil {
 			t.Fatalf("MoveFile returned error: %v", err)
 		}
 
@@ -1929,7 +1929,7 @@ func TestFindGroupForFile(t *testing.T) {
 			Files: []*FileEntry{{ID: idB, Name: "b.md", Path: "/b.md"}},
 		}
 
-		got := s.FindGroupForFile(idB)
+		got := s.FindGroupForFile(idB, "notes")
 		if got != "notes" {
 			t.Errorf("FindGroupForFile(%q) = %q, want %q", idB, got, "notes")
 		}
@@ -1942,7 +1942,7 @@ func TestFindGroupForFile(t *testing.T) {
 			Files: []*FileEntry{{ID: idA, Name: "a.md", Path: "/a.md"}},
 		}
 
-		got := s.FindGroupForFile("nonexistent")
+		got := s.FindGroupForFile("nonexistent", "docs")
 		if got != "" {
 			t.Errorf("FindGroupForFile(nonexistent) = %q, want empty", got)
 		}
@@ -1956,7 +1956,7 @@ func TestRemoveFileNotFound(t *testing.T) {
 		Files: []*FileEntry{{ID: testIDa, Name: "a.md", Path: "/a.md"}},
 	}
 
-	ok := s.RemoveFile("nonexistent-id")
+	ok := s.RemoveFile("nonexistent-id", DefaultGroup)
 	if ok {
 		t.Error("RemoveFile returned true for nonexistent file ID")
 	}
